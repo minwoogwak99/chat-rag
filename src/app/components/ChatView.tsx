@@ -5,14 +5,17 @@ import { UploadPDFView } from "./UploadPDFView";
 import { ChatHistoryType } from "@/type/type";
 import { v4 as uuidv4 } from "uuid";
 import CurrentChatView from "./CurrentChatView";
+import { useAtom } from "jotai";
+import { currentChatLogsAtom } from "@/atoms/atoms";
 
 export const ChatView = () => {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
-  const [histories, setHistories] = useState<ChatHistoryType[]>([]);
+  const [histories, setHistories] = useAtom(currentChatLogsAtom);
 
   const [streamingResponse, setStreamingResponse] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const submitData = async () => {
     setInput("");
@@ -52,11 +55,23 @@ export const ChatView = () => {
 
   const handleAnswerFromLink = async () => {
     setIsStreaming(true);
+    setIsLoading(true);
     setInput("");
-    setHistories((prev) => [
-      ...prev,
-      { id: uuidv4(), source: "user", message: input, createdAt: new Date() },
-    ]);
+    setHistories((prev) => {
+      if (!histories)
+        return [
+          {
+            id: uuidv4(),
+            source: "user",
+            message: input,
+            createdAT: new Date(),
+          },
+        ];
+      return [
+        ...prev,
+        { id: uuidv4(), source: "user", message: input, createdAt: new Date() },
+      ];
+    });
 
     const response = await fetch("api/link", {
       method: "POST",
@@ -69,6 +84,7 @@ export const ChatView = () => {
       }),
     });
 
+    setIsLoading(false);
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let result = "";
@@ -101,13 +117,14 @@ export const ChatView = () => {
 
   return (
     <div className="bg-red-300 flex justify-end items-center flex-col p-10 h-dvh">
-      <CurrentChatView chats={histories} />
+      {histories && <CurrentChatView chats={histories} />}
       {isStreaming && (
         <div className="w-1/2 flex flex-col mt-3">
           <div
             className={"flex gap-2 bg-blue-300 p-2 rounded-2xl items-center"}
           >
             <div className="bg-green-300 rounded-full p-3">bot</div>
+            {isLoading && <div>Loading...</div>}
             <div>{streamingResponse}</div>
           </div>
         </div>
