@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { UploadPDFView } from "./UploadPDFView";
-import { ChatHistoryType } from "@/type/type";
+import { ChatHistoryType, ChatSourceType } from "@/type/type";
 import { v4 as uuidv4 } from "uuid";
 import CurrentChatView from "./CurrentChatView";
 import { useAtom } from "jotai";
@@ -11,16 +11,31 @@ import { currentChatLogsAtom } from "@/atoms/atoms";
 export const ChatView = () => {
   const [input, setInput] = useState("");
   const [response, setResponse] = useState("");
-  const [histories, setHistories] = useAtom(currentChatLogsAtom);
+  const [currentChatLogs, setCurrentChatLogs] = useAtom(currentChatLogsAtom);
 
   const [streamingResponse, setStreamingResponse] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  const generateChatLog = ({
+    message,
+    source,
+  }: {
+    message: String;
+    source: ChatSourceType;
+  }) => {
+    return {
+      id: uuidv4(),
+      source: source,
+      message: message,
+      createdAt: new Date(),
+    };
+  };
+
   const submitData = async () => {
     setInput("");
     try {
-      setHistories((prev) => [
+      setCurrentChatLogs((prev) => [
         ...prev,
         { id: uuidv4(), source: "user", message: input, createdAt: new Date() },
       ]);
@@ -32,12 +47,12 @@ export const ChatView = () => {
         },
         body: JSON.stringify({
           input: input,
-          prevLog: histories.length > 0 ? histories : [],
+          prevLog: currentChatLogs.length > 0 ? currentChatLogs : [],
         }),
       });
 
       const data = await response.json();
-      setHistories((prev) => [
+      setCurrentChatLogs((prev) => [
         ...prev,
         {
           id: uuidv4(),
@@ -57,21 +72,11 @@ export const ChatView = () => {
     setIsStreaming(true);
     setIsLoading(true);
     setInput("");
-    setHistories((prev) => {
-      if (!histories)
-        return [
-          {
-            id: uuidv4(),
-            source: "user",
-            message: input,
-            createdAT: new Date(),
-          },
-        ];
-      return [
-        ...prev,
-        { id: uuidv4(), source: "user", message: input, createdAt: new Date() },
-      ];
-    });
+    setCurrentChatLogs((prev) =>
+      !currentChatLogs
+        ? [generateChatLog({ message: input, source: "user" })]
+        : [...prev, generateChatLog({ message: input, source: "user" })]
+    );
 
     const response = await fetch("api/link", {
       method: "POST",
@@ -80,7 +85,8 @@ export const ChatView = () => {
       },
       cache: "no-store",
       body: JSON.stringify({
-        query: input,
+        query: generateChatLog({ message: input, source: "user" }),
+        prevLog: currentChatLogs ? currentChatLogs : [],
       }),
     });
 
@@ -88,7 +94,6 @@ export const ChatView = () => {
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let result = "";
-
     try {
       while (true) {
         const { done, value } = await reader.read();
@@ -102,14 +107,9 @@ export const ChatView = () => {
     } catch (error) {
       console.error("Streaming error:", error);
     }
-    setHistories((prev) => [
+    setCurrentChatLogs((prev) => [
       ...prev,
-      {
-        id: uuidv4(),
-        source: "bot",
-        message: result,
-        createdAt: new Date(),
-      },
+      generateChatLog({ message: result, source: "bot" }),
     ]);
     setIsStreaming(false);
     setStreamingResponse("");
@@ -117,7 +117,7 @@ export const ChatView = () => {
 
   return (
     <div className="bg-red-300 flex justify-end items-center flex-col p-10 h-dvh">
-      {histories && <CurrentChatView chats={histories} />}
+      {currentChatLogs && <CurrentChatView chats={currentChatLogs} />}
       {isStreaming && (
         <div className="w-1/2 flex flex-col mt-3">
           <div

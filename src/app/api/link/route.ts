@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(request) {
   const api_url = "http://localhost:8080/fromlink";
-  const { query } = await request.json();
+  const { query, prevLog } = await request.json();
 
   const response = await fetch(api_url, {
     method: "POST",
@@ -12,6 +12,7 @@ export async function POST(request) {
     cache: "no-store",
     body: JSON.stringify({
       query: query,
+      prevLog: prevLog,
     }),
   });
 
